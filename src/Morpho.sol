@@ -362,6 +362,9 @@ contract Morpho is IMorphoStaticTyping {
 
             require(!_isHealthy(marketParams, id, borrower, collateralPrice), ErrorsLib.HEALTHY_POSITION);
 
+            uint256 collateral = position[id][borrower].collateral;
+            uint256 borrowShares = position[id][borrower].borrowShares;
+
             // The liquidation incentive factor is min(maxLiquidationIncentiveFactor, 1/(1 - cursor*(1 - lltv))).
             uint256 liquidationIncentiveFactor = UtilsLib.min(
                 MAX_LIQUIDATION_INCENTIVE_FACTOR,
@@ -369,15 +372,22 @@ contract Morpho is IMorphoStaticTyping {
             );
 
             if (seizedAssets > 0) {
+                seizedAssets = UtilsLib.min(seizedAssets, collateral);
+
                 uint256 seizedAssetsQuoted = seizedAssets.mulDivUp(collateralPrice, ORACLE_PRICE_SCALE);
 
                 repaidShares = seizedAssetsQuoted.wDivUp(liquidationIncentiveFactor)
                     .toSharesUp(market[id].totalBorrowAssets, market[id].totalBorrowShares);
             } else {
+                repaidShares = UtilsLib.min(repaidShares, borrowShares);
+
                 seizedAssets = repaidShares.toAssetsDown(market[id].totalBorrowAssets, market[id].totalBorrowShares)
                     .wMulDown(liquidationIncentiveFactor)
                     .mulDivDown(ORACLE_PRICE_SCALE, collateralPrice);
             }
+
+            seizedAssets = UtilsLib.min(seizedAssets, collateral);
+            repaidShares = UtilsLib.min(repaidShares, borrowShares);
         }
         uint256 repaidAssets = repaidShares.toAssetsUp(market[id].totalBorrowAssets, market[id].totalBorrowShares);
 
